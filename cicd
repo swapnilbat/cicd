@@ -1,0 +1,57 @@
+FROM centos:7
+MAINTAINER swapnil.batavale@gmail.com
+RUN yum install -y httpd \
+   zip \
+   unzip
+WORKDIR /var/www/html/
+RUN echo "welcome to jenkins pipeline" > index.html
+CMD ["/usr/sbin/httpd", "-D", "FOREGROUND"]
+EXPOSE 80
+
+
+
+node{
+    stage("Pull source code from Github"){
+        git branch: 'main', url: 'https://github.com/swapnilbat/mypipeline.git'
+    }
+    
+    stage("Build Docker file"){
+        sh 'docker image build -t $JOB_NAME:v1.$BUILD_ID .'
+        sh 'docker image tag $JOB_NAME:v1.$BUILD_ID swapnilbatavale/$JOB_NAME:v1.$BUILD_ID'
+        sh 'docker image tag $JOB_NAME:v1.$BUILD_ID swapnilbatavale/$JOB_NAME:latest'
+    }
+}
+
+
+
+------------------------------------------------
+
+node{
+    stage("Pull source code from Github"){
+        git branch: 'main', url: 'https://github.com/swapnilbat/mypipeline.git'
+    }
+    stage("Build Docker file"){
+        sh 'docker image build -t $JOB_NAME:v1.$BUILD_ID .'
+        sh 'docker image tag $JOB_NAME:v1.$BUILD_ID swapnilbatavale/$JOB_NAME:v1.$BUILD_ID'
+        sh 'docker image tag $JOB_NAME:v1.$BUILD_ID swapnilbatavale/$JOB_NAME:latest'
+    }
+    stage("Push image to docker hub"){
+     
+        sh 'docker login -u swapnilbatavale -p Nil@1234'
+        sh 'docker image push swapnilbatavale/$JOB_NAME:v1.$BUILD_ID'
+        sh 'docker image push swapnilbatavale/$JOB_NAME:latest'
+        sh 'docker image rmi -f $JOB_NAME:v1.$BUILD_ID swapnilbatavale/$JOB_NAME:v1.$BUILD_ID $BUILD_ID swapnilbatavale/$JOB_NAME:latest '
+
+    }
+    
+    stage("Deployment of Docker container"){
+        sshagent(['dockerhost']) {
+    // some block
+    sh 'ssh -o StrictHostKeyChecking=no -l ec2-user 172.31.35.104 uname -a'
+    sh "docker container run -p 8000:80 -d --name mycontainer2 swapnilbatavale/scripted-pipeline-demo:latest"
+
+}   
+        
+        
+    }
+}
